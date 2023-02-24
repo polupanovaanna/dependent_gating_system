@@ -1,0 +1,16 @@
+syntax = "proto3";
+package util;
+
+message CommitInfo {
+  string headHash = 1;
+  string commitDiff = 2;
+  string commandLine = 3;
+}
+
+message ServerResponse {
+  string response = 1;
+}
+
+service CommitData {
+  rpc Translate(CommitInfo) returns (ServerResponse) {}
+}
