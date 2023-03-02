@@ -1,6 +1,6 @@
 module github_actions
 
-go 1.20
+go 1.18
 
 require (
 	github.com/bluekeyes/go-gitdiff v0.7.0
