@@ -5,6 +5,7 @@ import (
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/go-git/go-git/v5"
 	"golang.org/x/net/context"
+	"io/ioutil"
 	"log"
 	"os"
 )
@@ -24,47 +25,43 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 	// master версия репозитория. Да, есть, нужно прописать отдельную логику, которая его будет обновлять просто
 	// пока что загружаю захардкоженный url
 
-	dir := "~/haha/"
+	dir := "hehe/"
 
 	file, err := os.Create("branch_patch.diff")
 
 	_, err = file.WriteString(in.CommitDiff)
+	CheckErr(err, "Error while file writing")
+	err = file.Close()
 	CheckErr(err, "Error while file saving")
 
 	patch, err := os.Open("branch_patch.diff")
-
 	files, _, err := gitdiff.Parse(patch)
 	err = patch.Close()
 	CheckErr(err, "Failed patch reading")
 
 	for _, f := range files {
 		//TODO это надо потом убрать точно
-		_, err := git.PlainClone(dir, false, &git.CloneOptions{
-			URL: "https://github.com/polupanovaanna/python-web-fall-2022.git",
+		err := os.RemoveAll(dir)
+		_, err = git.PlainClone(dir, false, &git.CloneOptions{
+			URL: "https://github.com/polupanovaanna/github_actions_test_project.git",
 		})
 		CheckErr(err, "Error when uploading git repository: %s")
 
-		log.Printf(f.NewName + " " + f.OldName + " some text")
-
-		file, err := os.OpenFile(dir+f.OldName, os.O_RDWR, f.OldMode)
-		if err != nil {
-			log.Printf("no file")
-			continue
-		}
-		//CheckErr(err, "Error while opening "+f.OldName)
-
-		err = file.Close()
-		CheckErr(err, "Error while closing "+f.OldName)
+		file, err := os.OpenFile(dir+f.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
+		CheckErr(err, "Error while opening "+f.OldName)
 
 		var output bytes.Buffer
 		err = gitdiff.Apply(&output, file, f)
 		CheckErr(err, "Error while applying changes "+f.OldName)
 
-		err = file.Truncate(0)
-		CheckErr(err, "Error while handling file "+f.OldName)
+		err = file.Close()
+		CheckErr(err, "Error while closing "+f.OldName)
 
-		_, err = file.Write(output.Bytes())
-		CheckErr(err, "Error while handling file "+f.OldName)
+		err = ioutil.WriteFile(dir+f.OldName, output.Bytes(), 0)
+		CheckErr(err, "Error while writing to file "+f.OldName)
+
+		//TODO github actions ??
+
 	}
 
 	return &ServerResponse{Response: "Evetything is ok!"}, nil

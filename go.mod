@@ -6,6 +6,7 @@ require (
 	github.com/bluekeyes/go-gitdiff v0.7.0
 	github.com/go-git/go-git/v5 v5.5.2
 	github.com/golang/protobuf v1.5.2
+	github.com/sethvargo/go-githubactions v1.1.0
 	golang.org/x/net v0.5.0
 	google.golang.org/grpc v1.53.0
 )
@@ -23,6 +24,7 @@ require (
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.2.3 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
+	github.com/sethvargo/go-envconfig v0.8.0 // indirect
 	github.com/skeema/knownhosts v1.1.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/crypto v0.3.0 // indirect
