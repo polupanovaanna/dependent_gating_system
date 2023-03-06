@@ -36,6 +36,7 @@ func main() {
 	r, err := git.PlainClone(directory, false, &git.CloneOptions{
 		URL: url,
 	})
+
 	CheckErr(err, "Error when uploading git repository: %s")
 
 	masterHeadRef, err := r.Head() //master HEAD hash
