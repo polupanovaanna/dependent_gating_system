@@ -22,7 +22,6 @@ func CheckErr(err error, msg string) {
 func main() {
 
 	url, directory := os.Args[1], os.Args[2]
-	//TODO тут должна быть какая-то валидация урла кажется
 
 	var conn *grpc.ClientConn
 	conn, err := grpc.Dial("localhost:8080", grpc.WithInsecure())

@@ -21,15 +21,17 @@ func CheckErr(err error, msg string) {
 
 func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse, error) {
 	log.Printf("Receive message body from client: %s", in.HeadHash)
+	//log.Printf("Receive message body from client: %s", in.CommitDiff)
 	// вот тут мне не то, чтобы все понятно, потому что у нас получается есть всегда на сервере
 	// master версия репозитория. Да, есть, нужно прописать отдельную логику, которая его будет обновлять просто
 	// пока что загружаю захардкоженный url
 
-	dir := "hehe/"
+	dir := "tmp/"
 
 	file, err := os.Create("branch_patch.diff")
 
 	_, err = file.WriteString(in.CommitDiff)
+	_, err = file.WriteString("\n")
 	CheckErr(err, "Error while file writing")
 	err = file.Close()
 	CheckErr(err, "Error while file saving")
@@ -52,6 +54,7 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 
 		var output bytes.Buffer
 		err = gitdiff.Apply(&output, file, f)
+
 		CheckErr(err, "Error while applying changes "+f.OldName)
 
 		err = file.Close()
@@ -59,8 +62,6 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 
 		err = ioutil.WriteFile(dir+f.OldName, output.Bytes(), 0)
 		CheckErr(err, "Error while writing to file "+f.OldName)
-
-		//TODO github actions ??
 
 	}
 
