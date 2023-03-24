@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
+	"strings"
 )
 
 type Server struct {
@@ -21,10 +23,6 @@ func CheckErr(err error, msg string) {
 
 func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse, error) {
 	log.Printf("Receive message body from client: %s", in.HeadHash)
-	//log.Printf("Receive message body from client: %s", in.CommitDiff)
-	// вот тут мне не то, чтобы все понятно, потому что у нас получается есть всегда на сервере
-	// master версия репозитория. Да, есть, нужно прописать отдельную логику, которая его будет обновлять просто
-	// пока что загружаю захардкоженный url
 
 	dir := "tmp/"
 
@@ -42,7 +40,7 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 	CheckErr(err, "Failed patch reading")
 
 	for _, f := range files {
-		//TODO это надо потом убрать точно
+		//TODO here need to work with docker
 		err := os.RemoveAll(dir)
 		_, err = git.PlainClone(dir, false, &git.CloneOptions{
 			URL: "https://github.com/polupanovaanna/github_actions_test_project.git",
@@ -54,7 +52,6 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 
 		var output bytes.Buffer
 		err = gitdiff.Apply(&output, file, f)
-
 		CheckErr(err, "Error while applying changes "+f.OldName)
 
 		err = file.Close()
@@ -64,6 +61,17 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 		CheckErr(err, "Error while writing to file "+f.OldName)
 
 	}
+	// patch is successfully applied
+	//TODO correct check of build with container
+
+	err = os.Chdir("tmp/")
+	CheckErr(err, "failed to find tmp directory")
+
+	args := strings.Split(in.CommandLine, " ")
+	cmd := exec.Command(args[0], args[1:]...)
+
+	err = cmd.Run()
+	CheckErr(err, "There are possible conflicts. Pull request could not be merged!")
 
 	return &ServerResponse{Response: "Evetything is ok!"}, nil
 }

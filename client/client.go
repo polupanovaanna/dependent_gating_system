@@ -21,6 +21,8 @@ func CheckErr(err error, msg string) {
 
 func main() {
 
+	//client is now unused and may be deleted later
+
 	url, directory := os.Args[1], os.Args[2]
 
 	var conn *grpc.ClientConn
@@ -58,10 +60,6 @@ func main() {
 		return nil
 	}) //iterating branches
 
-	//response, err := c.Translate(context.Background(), &util.CommitInfo{HeadHash: masterHeadRef.String()})
-
 	CheckErr(err, "Error when processing git info: %s")
-
-	//log.Printf("Response from server: %s", response)
 
 }
