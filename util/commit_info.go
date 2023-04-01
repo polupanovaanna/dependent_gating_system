@@ -3,7 +3,7 @@ package util
 import (
 	"bytes"
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
-	"github.com/go-git/go-git/v5"
+	"github.com/docker/docker/client"
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
@@ -19,6 +19,16 @@ func CheckErr(err error, msg string) {
 	if err != nil {
 		log.Fatalf(msg, err)
 	}
+}
+
+func runCommand(commandLine string) string {
+	args := strings.Split(commandLine, " ")
+	command := exec.Command(args[0], args[1:]...)
+	var out strings.Builder
+	command.Stdout = &out
+	err := command.Run()
+	CheckErr(err, "Error executing command: "+commandLine)
+	return out.String()
 }
 
 func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse, error) {
@@ -39,13 +49,19 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 	err = patch.Close()
 	CheckErr(err, "Failed patch reading")
 
+	//ctx_docker := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	CheckErr(err, "Error while creating docker client")
+	defer cli.Close()
+
+	runCommand("docker pull polupanovaanna/github_actions_test_project:main")
+	containerId := runCommand("docker create polupanovaanna/github_actions_test_project:main")
+	containerId = containerId[:len(containerId)-1]
+	runCommand("docker cp " + containerId + ":/app " + dir) //TODO unique number of local mount
+	runCommand("docker stop " + containerId)
+	runCommand("sudo chmod -R 777 " + dir)
+
 	for _, f := range files {
-		//TODO here need to work with docker
-		err := os.RemoveAll(dir)
-		_, err = git.PlainClone(dir, false, &git.CloneOptions{
-			URL: "https://github.com/polupanovaanna/github_actions_test_project.git",
-		})
-		CheckErr(err, "Error when uploading git repository: %s")
 
 		file, err := os.OpenFile(dir+f.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
 		CheckErr(err, "Error while opening "+f.OldName)
@@ -62,7 +78,6 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 
 	}
 	// patch is successfully applied
-	//TODO correct check of build with container
 
 	err = os.Chdir("tmp/")
 	CheckErr(err, "failed to find tmp directory")
