@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	"github_actions/util"
+	"github_actions/commit_info"
 )
 
 func CheckErr(err error, msg string) {
@@ -32,7 +32,7 @@ func main() {
 
 	defer conn.Close()
 
-	c := util.NewCommitDataClient(conn)
+	c := commit_info.NewCommitDataClient(conn)
 
 	r, err := git.PlainClone(directory, false, &git.CloneOptions{
 		URL: url,
@@ -51,9 +51,9 @@ func main() {
 			branchCommit, _ := r.CommitObject(ref.Hash())
 			patch, _ := masterHeadCommit.Patch(branchCommit)
 
-			response, err := c.Translate(context.Background(), &util.CommitInfo{HeadHash: masterHeadRef.Hash().String(),
+			response, err := c.Translate(context.Background(), &commit_info.CommitInfo{HeadHash: masterHeadRef.Hash().String(),
 				CommitDiff: patch.String()})
-			CheckErr(err, "Error when translating info to server: %s")
+			CheckErr(err, "Error when translating info to request_handler: %s")
 			fmt.Println(response)
 			fmt.Println("branch: ", patch.String())
 		}
