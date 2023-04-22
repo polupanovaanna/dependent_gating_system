@@ -2,13 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-git/go-git/v5/plumbing"
-	"log"
-	"os"
-
-	"github.com/go-git/go-git/v5"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"log"
 
 	"github_actions/commit_info"
 )
@@ -23,7 +19,7 @@ func main() {
 
 	//client is now unused and may be deleted later
 
-	url, directory := os.Args[1], os.Args[2]
+	//url, directory := os.Args[1], os.Args[2]
 
 	var conn *grpc.ClientConn
 	conn, err := grpc.Dial("localhost:8080", grpc.WithInsecure())
@@ -34,7 +30,7 @@ func main() {
 
 	c := commit_info.NewCommitDataClient(conn)
 
-	r, err := git.PlainClone(directory, false, &git.CloneOptions{
+	/*r, err := git.PlainClone(directory, false, &git.CloneOptions{
 		URL: url,
 	})
 
@@ -58,7 +54,15 @@ func main() {
 			fmt.Println("branch: ", patch.String())
 		}
 		return nil
-	}) //iterating branches
+	}) //iterating branches*/
+
+	response, err := c.Translate(context.Background(), &commit_info.CommitInfo{HeadHash: "dfc984f2f8cebb0f4bc6a460843086a00c405444", CommandLine: "bazel build //a_app:a_build",
+		CommitDiff: "diff --git a/a_app/a.go b/a_app/a.go\nindex f056313..91f7693 100644\n--- a/a_app/a.go\n+++ b/a_app/a.go\n@@ -4,4 +4,5 @@ import \"fmt\"\n \n func main() {\n \tfmt.Println(\"hello from a\")\n+\tfmt.Println(\"hello from a again!!!\")\n }\n"})
+	fmt.Println(response)
+
+	response, err = c.Translate(context.Background(), &commit_info.CommitInfo{HeadHash: "dfc984f2f8cebb0f4bc6a460843086a00c405444", CommandLine: "bazel build //a_app:a_build",
+		CommitDiff: "diff --git a/b_app/b.go b/b_app/b.go\nindex ce7a909..7be6585 100644\n--- a/b_app/b.go\n+++ b/b_app/b.go\n@@ -4,4 +4,5 @@ import \"fmt\"\n \n func main() {\n \tfmt.Println(\"hello from b\")\n+\tfmt.Println(\"hello from b again!!\")\n }\n"})
+	fmt.Println(response)
 
 	CheckErr(err, "Error when processing git info: %s")
 

@@ -3,11 +3,13 @@ package nodes_handler
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/docker/docker/client"
 	"github.com/emirpasic/gods/utils"
 	"github_actions/util"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -56,9 +58,12 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 			g.AddNodes(patch, cur.Left)
 		} else {
 			//add left
-			var changes = cur.PatchApplied[:len(cur.PatchApplied)-1] //remove last change
+			patchAppliedCopy := make([]string, len(cur.PatchApplied))
+			_ = copy(patchAppliedCopy, cur.PatchApplied)
+			changes := patchAppliedCopy[:len(patchAppliedCopy)-1] //remove last change
 			changes = append(changes, utils.ToString(patch))
-			var left = Node{Status: Ready, Path: "nodes/node/" + strings.Join(changes, "") + "/",
+			fmt.Print("left node: " + strings.Join(changes, "") + "\n")
+			var left = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
 				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
 			cur.Left = &left
 		}
@@ -67,13 +72,17 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 			g.AddNodes(patch, cur.Right)
 		} else {
 			//add right
-			var changes = append(cur.PatchApplied, utils.ToString(patch))
+			patchAppliedCopy := make([]string, len(cur.PatchApplied))
+			_ = copy(patchAppliedCopy, cur.PatchApplied)
+			var changes = append(patchAppliedCopy, utils.ToString(patch))
+			fmt.Print("right node: " + strings.Join(changes, "") + "\n")
 			var right = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
 				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
 			cur.Right = &right
 		}
 	} else { //define root
 		var changes = []string{utils.ToString(patch)}
+		fmt.Print("root node: " + strings.Join(changes, "") + "\n")
 		var root = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
 			PatchApplied: changes, Left: nil, Right: nil, Parent: nil}
 		g.Root = &root
@@ -92,16 +101,23 @@ func (g *Graph) deleteNode(this *Node) {
 }
 
 func (g *Graph) runNode(this *Node) error {
+	err := os.Chdir("/home/anna/go_git_actions")
+
 	this.Status = Running
 	var dir = this.Path
+	log.Print("Current dir: " + dir)
 
 	for _, patchNum := range this.PatchApplied {
 		var diffPatch = "patch" + patchNum + ".diff"
 
 		patch, err := os.Open(diffPatch)
+		util.CheckErr(err, "Failed patch opening")
+
 		files, _, err := gitdiff.Parse(patch)
+		util.CheckErr(err, "Failed patch parsing")
+
 		err = patch.Close()
-		util.CheckErr(err, "Failed patch reading")
+		util.CheckErr(err, "Failed patch closing")
 
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		util.CheckErr(err, "Error while creating docker client")
@@ -110,9 +126,13 @@ func (g *Graph) runNode(this *Node) error {
 		util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
 		containerId := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
 		containerId = containerId[:len(containerId)-1]
+
+		log.Printf("docker cp " + containerId + ":/app " + dir)
 		util.RunCommand("docker cp " + containerId + ":/app " + dir)
-		util.RunCommand("docker stop " + containerId)
+		log.Printf("docker stop " + containerId)
+		//util.RunCommand("docker stop " + containerId)
 		util.RunCommand("sudo chmod -R 777 " + dir) //TODO fix that
+		//TODO второй раз не срабатывает..................
 
 		for _, f := range files {
 			file, err := os.OpenFile(dir+f.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
@@ -131,7 +151,7 @@ func (g *Graph) runNode(this *Node) error {
 		// patch is successfully applied
 	}
 
-	err := os.Chdir(dir)
+	err = os.Chdir(dir)
 	util.CheckErr(err, "failed to find directory"+dir)
 
 	args := strings.Split(g.Command, " ")

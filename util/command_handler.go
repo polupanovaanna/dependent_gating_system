@@ -1,6 +1,7 @@
 package util
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -9,8 +10,14 @@ func RunCommand(commandLine string) string {
 	args := strings.Split(commandLine, " ")
 	command := exec.Command(args[0], args[1:]...)
 	var out strings.Builder
+	var errOut strings.Builder
 	command.Stdout = &out
+	command.Stderr = &errOut
 	err := command.Run()
-	CheckErr(err, "Error executing command: "+commandLine)
+	CheckErr(err, "Error executing command: "+commandLine+"\n Error log: "+errOut.String())
+
+	err = os.Chdir("/home/anna/go_git_actions")
+	CheckErr(err, "Error returning to current directory")
+
 	return out.String()
 }
