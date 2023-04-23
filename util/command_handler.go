@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+func ClearAll() {
+	DirSetup()
+	RunCommand("rm -r nodes")
+	RunCommand("mkdir nodes")
+}
+
 func DirSetup() {
 	err := os.Chdir("/home/anna/go_git_actions")
 	CheckErr(err, "Error returning to current directory")

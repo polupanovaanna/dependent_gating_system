@@ -22,6 +22,7 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 	util.DirSetup()
 
 	if NodeCounter == 0 { //add initializing graph in other cases
+		util.ClearAll()
 		MainGraph.Init(in.CommandLine)
 	}
 
