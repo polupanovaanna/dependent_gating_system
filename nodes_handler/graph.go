@@ -15,6 +15,9 @@ import (
 	"strings"
 )
 
+var sem = make(chan int, 8) //max goroutines
+var errC = make(chan error) //max goroutines
+
 type ExecutionStatus int64
 
 type Graph struct {
@@ -116,7 +119,6 @@ func (g *Graph) runNode(this *Node) error {
 	containerId := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
 	containerId = containerId[:len(containerId)-1]
 
-	log.Printf("docker cp " + containerId + ":/app " + dir)
 	util.RunCommand("docker cp " + containerId + ":/app " + dir)
 	util.RunCommand("docker stop " + containerId)
 	util.RunCommand("sudo chmod -R 777 " + dir) //TODO fix that
@@ -125,6 +127,7 @@ func (g *Graph) runNode(this *Node) error {
 	for _, patchNum := range this.PatchApplied {
 		var diffPatch = "patch" + patchNum + ".diff"
 
+		util.DirSetup()
 		patch, err := os.Open(diffPatch)
 		util.CheckErr(err, "Failed patch opening")
 
@@ -169,23 +172,44 @@ func (g *Graph) runNode(this *Node) error {
 }
 
 func (g *Graph) Run(node *Node) error {
+	cnt := 0
 	if node != nil {
+
+		if node.Status == Successful || node.Status == Failed {
+			fmt.Print(1)
+			cnt += 1
+			go func() {
+				fmt.Print("start run Left Node " + utils.ToString(node.PatchApplied) + "\n")
+				err := g.Run(node.Left)
+				fmt.Print("end run Left Node " + utils.ToString(node.PatchApplied) + "\n")
+				errC <- err
+			}()
+			fmt.Print(2)
+		}
 		if node.Status == Successful {
-			err := g.Run(node.Left)
+			cnt += 1
+			go func() {
+				fmt.Print("start run Right Node " + utils.ToString(node.PatchApplied) + "\n")
+				err := g.Run(node.Right)
+				fmt.Print("end run Right Node " + utils.ToString(node.PatchApplied) + "\n")
+				errC <- err
+			}()
+		}
+		if node.Status == Ready {
+			fmt.Print("start run Node " + utils.ToString(node.PatchApplied) + "\n")
+			err := g.runNode(node)
+			fmt.Print("end run Node " + utils.ToString(node.PatchApplied) + "\n")
+			return err
+		}
+
+		var err error
+		for i := 0; i < cnt; i++ {
+			err = <-errC
 			if err != nil {
 				return err
 			}
-			err = g.Run(node.Right)
-			return err
-		}
-		if node.Status == Failed {
-			err := g.Run(node.Left)
-			return err
-		}
-		if node.Status == Ready {
-			err := g.runNode(node)
-			return err
 		}
 	}
+
 	return nil
 }
