@@ -2,6 +2,7 @@ package commit_info
 
 import (
 	"github.com/emirpasic/gods/utils"
+
 	"github_actions/nodes_handler"
 	"github_actions/util"
 	"golang.org/x/net/context"
@@ -18,6 +19,7 @@ type Server struct {
 
 func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse, error) {
 	log.Printf("Receive message body from client: %s", in.HeadHash)
+	util.DirSetup()
 
 	if NodeCounter == 0 { //add initializing graph in other cases
 		MainGraph.Init(in.CommandLine)

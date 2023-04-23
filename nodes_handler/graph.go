@@ -101,12 +101,27 @@ func (g *Graph) deleteNode(this *Node) {
 }
 
 func (g *Graph) runNode(this *Node) error {
-	err := os.Chdir("/home/anna/go_git_actions")
+	util.DirSetup()
 
 	this.Status = Running
 	var dir = this.Path
 	log.Print("Current dir: " + dir)
 
+	//upload up-to-date docker image
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	util.CheckErr(err, "Error while creating docker client")
+	defer cli.Close()
+
+	util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
+	containerId := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
+	containerId = containerId[:len(containerId)-1]
+
+	log.Printf("docker cp " + containerId + ":/app " + dir)
+	util.RunCommand("docker cp " + containerId + ":/app " + dir)
+	util.RunCommand("docker stop " + containerId)
+	util.RunCommand("sudo chmod -R 777 " + dir) //TODO fix that
+
+	//apply patch
 	for _, patchNum := range this.PatchApplied {
 		var diffPatch = "patch" + patchNum + ".diff"
 
@@ -118,21 +133,6 @@ func (g *Graph) runNode(this *Node) error {
 
 		err = patch.Close()
 		util.CheckErr(err, "Failed patch closing")
-
-		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-		util.CheckErr(err, "Error while creating docker client")
-		defer cli.Close()
-
-		util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
-		containerId := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
-		containerId = containerId[:len(containerId)-1]
-
-		log.Printf("docker cp " + containerId + ":/app " + dir)
-		util.RunCommand("docker cp " + containerId + ":/app " + dir)
-		log.Printf("docker stop " + containerId)
-		//util.RunCommand("docker stop " + containerId)
-		util.RunCommand("sudo chmod -R 777 " + dir) //TODO fix that
-		//TODO второй раз не срабатывает..................
 
 		for _, f := range files {
 			file, err := os.OpenFile(dir+f.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
@@ -150,7 +150,6 @@ func (g *Graph) runNode(this *Node) error {
 		}
 		// patch is successfully applied
 	}
-
 	err = os.Chdir(dir)
 	util.CheckErr(err, "failed to find directory"+dir)
 

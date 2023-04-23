@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+func DirSetup() {
+	err := os.Chdir("/home/anna/go_git_actions")
+	CheckErr(err, "Error returning to current directory")
+}
+
 func RunCommand(commandLine string) string {
 	args := strings.Split(commandLine, " ")
 	command := exec.Command(args[0], args[1:]...)
@@ -15,9 +20,6 @@ func RunCommand(commandLine string) string {
 	command.Stderr = &errOut
 	err := command.Run()
 	CheckErr(err, "Error executing command: "+commandLine+"\n Error log: "+errOut.String())
-
-	err = os.Chdir("/home/anna/go_git_actions")
-	CheckErr(err, "Error returning to current directory")
-
+	DirSetup()
 	return out.String()
 }
