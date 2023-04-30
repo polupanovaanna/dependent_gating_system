@@ -19,6 +19,7 @@ type Server struct {
 
 func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse, error) {
 	log.Printf("Receive message body from client: %s", in.HeadHash)
+	log.Println("Affected targets " + in.AffectedTargets)
 	util.DirSetup()
 
 	if NodeCounter == 0 { //add initializing graph in other cases

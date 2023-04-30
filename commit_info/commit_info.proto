@@ -8,6 +8,7 @@ message CommitInfo {
   string headHash = 1;
   string commitDiff = 2;
   string commandLine = 3;
+  string affectedTargets = 4;
 }
 
 message ServerResponse {
