@@ -48,9 +48,12 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 			_ = copy(patchAppliedCopy, cur.PatchApplied)
 			changes := patchAppliedCopy[:len(patchAppliedCopy)-1] //remove last change
 			changes = append(changes, utils.ToString(patch))
+			var priority = getPriority(changes)
+
 			fmt.Print("left node: " + strings.Join(changes, "") + "\n")
 			var left = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
-				PatchApplied: changes, Left: nil, Right: nil, Parent: cur, Priority: 1}
+				PatchApplied: changes, Left: nil, Right: nil, Parent: cur, Priority: priority}
+
 			nodesPQ.Push(&left)
 			cur.Left = &left
 		}
@@ -62,10 +65,11 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 			patchAppliedCopy := make([]string, len(cur.PatchApplied))
 			_ = copy(patchAppliedCopy, cur.PatchApplied)
 			var changes = append(patchAppliedCopy, utils.ToString(patch))
+			var priority = getPriority(changes)
 
 			fmt.Print("right node: " + strings.Join(changes, "") + "\n")
 			var right = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
-				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
+				PatchApplied: changes, Left: nil, Right: nil, Parent: cur, Priority: priority}
 
 			nodesPQ.Push(&right)
 			cur.Right = &right
@@ -75,7 +79,7 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 
 		fmt.Print("root node: " + strings.Join(changes, "") + "\n")
 		var root = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
-			PatchApplied: changes, Left: nil, Right: nil, Parent: nil}
+			PatchApplied: changes, Left: nil, Right: nil, Parent: nil, Priority: 10}
 
 		nodesPQ.Push(&root)
 		g.Root = &root

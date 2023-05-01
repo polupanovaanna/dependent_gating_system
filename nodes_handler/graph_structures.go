@@ -2,6 +2,8 @@ package nodes_handler
 
 import (
 	"container/heap"
+	"github_actions/util"
+	"os"
 	"strings"
 )
 
@@ -38,7 +40,7 @@ type NodesPriorityQueue []*Node
 func (pq NodesPriorityQueue) Len() int { return len(pq) }
 
 func (pq NodesPriorityQueue) Less(i, j int) bool {
-	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
+	// We want Pop to give us the highest, not lowest, priority, so we use greater than here.
 	return pq[i].Priority > pq[j].Priority
 }
 
@@ -81,4 +83,37 @@ func getPriorityBranch(root *Node, node *Node) BranchDir {
 		return Left
 	}
 
+}
+
+func getTargetsFromPatches(patchNumber []string) map[string]struct{} {
+	var targets = make(map[string]struct{})
+
+	for j := 0; j < len(patchNumber); j++ {
+		var diffPatch = "patch" + patchNumber[j] + ".diff"
+
+		util.DirSetup()
+		patchB, err := os.ReadFile(diffPatch)
+		util.CheckErr(err, "Failed patch reading")
+		var patch = string(patchB)
+
+		var lines = strings.Split(patch, "\n")
+
+		for i := 0; i < len(lines); i++ {
+			if strings.HasPrefix(lines[i], "--- a/") {
+				targets[strings.TrimPrefix(lines[i], "--- a/")] = struct{}{}
+			}
+		}
+	}
+	return targets
+}
+
+func getPriority(changes []string) int {
+	var targets = getTargetsFromPatches(changes)
+	priority := 1
+	for i := 0; i < len(changes); i++ {
+		if _, val := targets[changes[i]]; val {
+			priority += 1
+		}
+	}
+	return priority
 }
