@@ -22,7 +22,7 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 	log.Println("Affected targets " + in.AffectedTargets)
 	util.DirSetup()
 
-	if NodeCounter == 0 { //add initializing graph in other cases
+	if NodeCounter == 0 {
 		util.ClearAll()
 		MainGraph.Init(in.CommandLine)
 	}
@@ -45,8 +45,8 @@ func (s *Server) Translate(ctx context.Context, in *CommitInfo) (*ServerResponse
 	err = MainGraph.Run(MainGraph.Root)
 
 	if err != nil {
-		return &ServerResponse{Response: err.Error()}, err
+		return &ServerResponse{Response: "The pull request could not be merged: " + err.Error()}, err
 	}
 
-	return &ServerResponse{Response: "Evetything is ok!"}, nil
+	return &ServerResponse{Response: "Everything is ok!"}, nil
 }

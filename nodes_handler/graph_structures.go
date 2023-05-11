@@ -1,9 +1,10 @@
 package nodes_handler
 
 import (
-	"container/heap"
+	"fmt"
 	"github_actions/util"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -31,46 +32,6 @@ type Node struct {
 	Left         *Node           //left child
 	Right        *Node           //right child
 	Parent       *Node           //parent
-	Priority     int             //priority of Node due to targets affected
-	Index        int             //index of Node in Priority queue
-}
-
-type NodesPriorityQueue []*Node
-
-func (pq NodesPriorityQueue) Len() int { return len(pq) }
-
-func (pq NodesPriorityQueue) Less(i, j int) bool {
-	// We want Pop to give us the highest, not lowest, priority, so we use greater than here.
-	return pq[i].Priority > pq[j].Priority
-}
-
-func (pq NodesPriorityQueue) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].Index = i
-	pq[j].Index = j
-}
-
-func (pq *NodesPriorityQueue) Push(x any) {
-	n := len(*pq)
-	item := x.(*Node)
-	item.Index = n
-	*pq = append(*pq, item)
-}
-
-func (pq *NodesPriorityQueue) Pop() any {
-	old := *pq
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	item.Index = -1 // for safety
-	*pq = old[0 : n-1]
-	return item
-}
-
-// update modifies the priority and value of an Item in the queue.
-func (pq *NodesPriorityQueue) update(node *Node, priority int) {
-	node.Priority = priority
-	heap.Fix(pq, node.Index)
 }
 
 func getPriorityBranch(root *Node, node *Node) BranchDir {
@@ -85,35 +46,42 @@ func getPriorityBranch(root *Node, node *Node) BranchDir {
 
 }
 
-func getTargetsFromPatches(patchNumber []string) map[string]struct{} {
+func getTargetsFromPatch(patchNumber string) map[string]struct{} {
 	var targets = make(map[string]struct{})
 
-	for j := 0; j < len(patchNumber); j++ {
-		var diffPatch = "patch" + patchNumber[j] + ".diff"
+	var diffPatch = "patch" + patchNumber + ".diff"
 
-		util.DirSetup()
-		patchB, err := os.ReadFile(diffPatch)
-		util.CheckErr(err, "Failed patch reading")
-		var patch = string(patchB)
+	util.DirSetup()
+	patchB, err := os.ReadFile(diffPatch)
+	util.CheckErr(err, "Failed patch reading")
+	var patch = string(patchB)
 
-		var lines = strings.Split(patch, "\n")
+	var lines = strings.Split(patch, "\n")
 
-		for i := 0; i < len(lines); i++ {
-			if strings.HasPrefix(lines[i], "--- a/") {
-				targets[strings.TrimPrefix(lines[i], "--- a/")] = struct{}{}
-			}
+	for i := 0; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "--- a/") {
+			targets[strings.TrimPrefix(lines[i], "--- a/")] = struct{}{}
 		}
 	}
+
+	//returns set with affected files
 	return targets
 }
 
-func getPriority(changes []string) int {
-	var targets = getTargetsFromPatches(changes)
+func getPriority(changes []string) float64 {
+	var initTargets = getTargetsFromPatch(changes[0]) //get targets from first patch
 	priority := 1
-	for i := 0; i < len(changes); i++ {
-		if _, val := targets[changes[i]]; val {
-			priority += 1
+
+	for i := 1; i < len(changes); i++ {
+		var patchTargets = getTargetsFromPatch(changes[i])
+		for target, _ := range patchTargets {
+			if _, exists := initTargets[target]; exists {
+				priority += 1
+			} else {
+				initTargets[target] = struct{}{}
+			}
 		}
 	}
-	return priority
+	fmt.Print("Got priority for the node " + strings.Join(changes, "") + ": " + strconv.Itoa(priority) + "\n")
+	return float64(priority)
 }

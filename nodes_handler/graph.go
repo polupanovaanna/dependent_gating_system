@@ -7,6 +7,7 @@ import (
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/docker/docker/client"
 	"github.com/emirpasic/gods/utils"
+	pq "github.com/kyroy/priority-queue"
 	"github_actions/util"
 	"io/ioutil"
 	"log"
@@ -16,13 +17,13 @@ import (
 	"sync"
 )
 
-var sem = make(chan int, 8) //max goroutines
-var errC = make(chan error) //return value
+var guard = make(chan int, 8) //max goroutines
+var errC = make(chan error)   //return value
 
 type ExecutionStatus int64
 type BranchDir int64
 
-var nodesPQ = make(NodesPriorityQueue, 0)
+var nodesPQ = pq.NewPriorityQueue()
 
 type GraphHandler interface {
 	init(command string)
@@ -52,9 +53,9 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 
 			fmt.Print("left node: " + strings.Join(changes, "") + "\n")
 			var left = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
-				PatchApplied: changes, Left: nil, Right: nil, Parent: cur, Priority: priority}
+				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
 
-			nodesPQ.Push(&left)
+			nodesPQ.Insert(&left, priority)
 			cur.Left = &left
 		}
 		//right
@@ -69,9 +70,9 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 
 			fmt.Print("right node: " + strings.Join(changes, "") + "\n")
 			var right = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
-				PatchApplied: changes, Left: nil, Right: nil, Parent: cur, Priority: priority}
+				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
 
-			nodesPQ.Push(&right)
+			nodesPQ.Insert(&right, priority)
 			cur.Right = &right
 		}
 	} else { //define root
@@ -79,9 +80,9 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 
 		fmt.Print("root node: " + strings.Join(changes, "") + "\n")
 		var root = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
-			PatchApplied: changes, Left: nil, Right: nil, Parent: nil, Priority: 10}
+			PatchApplied: changes, Left: nil, Right: nil, Parent: nil}
 
-		nodesPQ.Push(&root)
+		nodesPQ.Insert(&root, 10)
 		g.Root = &root
 	}
 
@@ -107,7 +108,9 @@ func (g *Graph) runNode(this *Node) error {
 
 	//upload up-to-date docker image
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	util.CheckErr(err, "Error while creating docker client")
+	if err != nil {
+		return errors.New("Error while creating docker client")
+	}
 	defer cli.Close()
 
 	util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
@@ -116,7 +119,7 @@ func (g *Graph) runNode(this *Node) error {
 
 	util.RunCommand("docker cp " + containerId + ":/app " + dir)
 	util.RunCommand("docker stop " + containerId)
-	util.RunCommand("sudo chmod -R 777 " + dir) //TODO fix that
+	util.RunCommand("sudo chmod -R 777 " + dir)
 
 	//apply patch
 	for _, patchNum := range this.PatchApplied {
@@ -125,35 +128,51 @@ func (g *Graph) runNode(this *Node) error {
 		m.Lock()
 		util.DirSetup()
 		patch, err := os.Open(diffPatch)
-		util.CheckErr(err, "Failed patch opening")
+		if err != nil {
+			return errors.New("Failed patch opening")
+		}
 
 		files, _, err := gitdiff.Parse(patch)
-		util.CheckErr(err, "Failed patch parsing")
+		if err != nil {
+			return errors.New("Failed patch parsing")
+		}
 
 		err = patch.Close()
-		util.CheckErr(err, "Failed patch closing")
+		if err != nil {
+			return errors.New("Failed patch closing")
+		}
 		m.Unlock()
 
 		for _, f := range files {
 			m.Lock()
 			file, err := os.OpenFile(dir+f.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
-			util.CheckErr(err, "Error while opening "+f.OldName)
+			if err != nil {
+				return errors.New("Error while opening " + f.OldName)
+			}
 
 			var output bytes.Buffer
 			err = gitdiff.Apply(&output, file, f)
-			util.CheckErr(err, "Error while applying changes "+f.OldName)
+			if err != nil {
+				return errors.New("Error while applying changes " + f.OldName)
+			}
 
 			err = file.Close()
-			util.CheckErr(err, "Error while closing "+f.OldName)
+			if err != nil {
+				return errors.New("Error while closing " + f.OldName)
+			}
 
 			err = ioutil.WriteFile(dir+f.OldName, output.Bytes(), 0)
-			util.CheckErr(err, "Error while writing to file "+f.OldName)
+			if err != nil {
+				return errors.New("Error while writing to file " + f.OldName)
+			}
 			m.Unlock()
 		}
 		// patch is successfully applied
 	}
 	err = os.Chdir(dir)
-	util.CheckErr(err, "failed to find directory"+dir)
+	if err != nil {
+		return errors.New("failed to find directory" + dir)
+	}
 
 	args := strings.Split(g.Command, " ")
 	cmd := exec.Command(args[0], args[1:]...)
@@ -162,12 +181,22 @@ func (g *Graph) runNode(this *Node) error {
 
 	if err != nil {
 		this.Status = Failed
-		g.deleteNode(this.Right)
+		if this.Right != nil {
+			g.deleteNode(this.Right)
+		}
 		return errors.New("There are possible conflicts. Pull request could not be merged!")
 	}
 
 	this.Status = Successful
 	return nil
+}
+
+func decreaseGuard() {
+	select {
+	case _, _ = <-guard:
+	default:
+		fmt.Println("")
+	}
 }
 
 func (g *Graph) Run(node *Node) error {
@@ -177,31 +206,38 @@ func (g *Graph) Run(node *Node) error {
 			fmt.Print("start run Node " + utils.ToString(node.PatchApplied) + "\n")
 			err := g.runNode(node)
 			fmt.Print("end run Node " + utils.ToString(node.PatchApplied) + "\n")
+			decreaseGuard()
 			return err
 		}
 
-		var priorityNode = nodesPQ.Pop()
+		var priorityNode = nodesPQ.PopHighest()
 		var nodeDir = getPriorityBranch(node, priorityNode.(*Node))
 
 		if nodeDir == Left {
 			if node.Status == Successful || node.Status == Failed {
 				cnt += 1
+				guard <- 1
 				go g.RunLeft(node)
 			}
 			if node.Status == Successful {
 				cnt += 1
+				guard <- 1
 				go g.RunRight(node)
 			}
 		} else {
 			if node.Status == Successful {
 				cnt += 1
+				guard <- 1
 				go g.RunRight(node)
 			}
 			if node.Status == Successful || node.Status == Failed {
 				cnt += 1
+				guard <- 1
 				go g.RunLeft(node)
 			}
 		}
+
+		decreaseGuard()
 
 		var err error
 		for i := 0; i < cnt; i++ {
@@ -212,6 +248,7 @@ func (g *Graph) Run(node *Node) error {
 		}
 	}
 
+	decreaseGuard()
 	return nil
 }
 

@@ -8,7 +8,8 @@ import (
 
 func ClearAll() {
 	DirSetup()
-	RunCommand("rm -r nodes")
+	RunCommand("rm -f patch*")
+	RunCommand("rm -f -r nodes")
 	RunCommand("mkdir nodes")
 }
 
