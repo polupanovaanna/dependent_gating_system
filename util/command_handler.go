@@ -19,14 +19,18 @@ func DirSetup() {
 }
 
 func RunCommand(commandLine string) string {
-	args := strings.Split(commandLine, " ")
-	command := exec.Command(args[0], args[1:]...)
+	var args = strings.Split(commandLine, " ")
+	var command = exec.Command(args[0], args[1:]...)
+
 	var out strings.Builder
 	var errOut strings.Builder
+
 	command.Stdout = &out
 	command.Stderr = &errOut
 	err := command.Run()
+
 	CheckErr(err, "Error executing command: "+commandLine+"\n Error log: "+errOut.String())
 	DirSetup()
+
 	return out.String()
 }

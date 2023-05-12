@@ -4,7 +4,7 @@
 // 	protoc        v3.12.4
 // source: commit_info.proto
 
-package commit_info
+package commitinfo
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

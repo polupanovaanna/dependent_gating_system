@@ -1,8 +1,8 @@
-package nodes_handler
+package nodeshandler
 
 import (
-	"fmt"
 	"github_actions/util"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -36,14 +36,14 @@ type Node struct {
 
 func getPriorityBranch(root *Node, node *Node) BranchDir {
 	var rootPatches = strings.Join(root.PatchApplied, "")
+
 	var nodePatches = strings.Join(node.PatchApplied, "")
 
 	if strings.Contains(nodePatches, rootPatches) {
 		return Right
-	} else {
-		return Left
 	}
 
+	return Left
 }
 
 func getTargetsFromPatch(patchNumber string) map[string]struct{} {
@@ -52,10 +52,10 @@ func getTargetsFromPatch(patchNumber string) map[string]struct{} {
 	var diffPatch = "patch" + patchNumber + ".diff"
 
 	util.DirSetup()
-	patchB, err := os.ReadFile(diffPatch)
+	var patchB, err = os.ReadFile(diffPatch)
 	util.CheckErr(err, "Failed patch reading")
-	var patch = string(patchB)
 
+	var patch = string(patchB)
 	var lines = strings.Split(patch, "\n")
 
 	for i := 0; i < len(lines); i++ {
@@ -70,18 +70,19 @@ func getTargetsFromPatch(patchNumber string) map[string]struct{} {
 
 func getPriority(changes []string) float64 {
 	var initTargets = getTargetsFromPatch(changes[0]) //get targets from first patch
-	priority := 1
+	var priority = 1
 
 	for i := 1; i < len(changes); i++ {
 		var patchTargets = getTargetsFromPatch(changes[i])
-		for target, _ := range patchTargets {
+		for target := range patchTargets {
 			if _, exists := initTargets[target]; exists {
-				priority += 1
+				priority++
 			} else {
 				initTargets[target] = struct{}{}
 			}
 		}
 	}
-	fmt.Print("Got priority for the node " + strings.Join(changes, "") + ": " + strconv.Itoa(priority) + "\n")
+	log.Println("Got priority for the node " + strings.Join(changes, "") + ": " + strconv.Itoa(priority))
+
 	return float64(priority)
 }

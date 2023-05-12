@@ -1,9 +1,8 @@
-package nodes_handler
+package nodeshandler
 
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/docker/docker/client"
 	"github.com/emirpasic/gods/utils"
@@ -17,8 +16,8 @@ import (
 	"sync"
 )
 
-var guard = make(chan int, 8) //max goroutines
-var errC = make(chan error)   //return value
+var guard = make(chan int, 8) // max goroutines
+var errC = make(chan error)   // return value
 
 type ExecutionStatus int64
 type BranchDir int64
@@ -30,7 +29,7 @@ type GraphHandler interface {
 	addNodes(patch int, cur *Node)
 	runNode(this *Node)
 	deleteNode(this *Node)
-	run(node *Node) //need to be changed
+	run(node *Node)
 }
 
 func (g *Graph) Init(command string) {
@@ -39,19 +38,19 @@ func (g *Graph) Init(command string) {
 }
 
 func (g *Graph) AddNodes(patch int, cur *Node) {
-	if g.Root != nil { //and cur != nil
-		//left
+	if g.Root != nil { // and cur != nil
+		// left
 		if cur.Left != nil {
 			g.AddNodes(patch, cur.Left)
 		} else {
-			//add left
+			// add left
 			patchAppliedCopy := make([]string, len(cur.PatchApplied))
 			_ = copy(patchAppliedCopy, cur.PatchApplied)
 			changes := patchAppliedCopy[:len(patchAppliedCopy)-1] //remove last change
 			changes = append(changes, utils.ToString(patch))
 			var priority = getPriority(changes)
 
-			fmt.Print("left node: " + strings.Join(changes, "") + "\n")
+			log.Println("left node: " + strings.Join(changes, ""))
 			var left = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
 				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
 
@@ -68,7 +67,7 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 			var changes = append(patchAppliedCopy, utils.ToString(patch))
 			var priority = getPriority(changes)
 
-			fmt.Print("right node: " + strings.Join(changes, "") + "\n")
+			log.Println("right node: " + strings.Join(changes, ""))
 			var right = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
 				PatchApplied: changes, Left: nil, Right: nil, Parent: cur}
 
@@ -78,14 +77,13 @@ func (g *Graph) AddNodes(patch int, cur *Node) {
 	} else { //define root
 		var changes = []string{utils.ToString(patch)}
 
-		fmt.Print("root node: " + strings.Join(changes, "") + "\n")
+		log.Println("root node: " + strings.Join(changes, ""))
 		var root = Node{Status: Ready, Path: "nodes/node" + strings.Join(changes, "") + "/",
 			PatchApplied: changes, Left: nil, Right: nil, Parent: nil}
 
-		nodesPQ.Insert(&root, 10)
+		nodesPQ.Insert(&root, 0)
 		g.Root = &root
 	}
-
 }
 
 func (g *Graph) deleteNode(this *Node) {
@@ -99,11 +97,13 @@ func (g *Graph) deleteNode(this *Node) {
 }
 
 func (g *Graph) runNode(this *Node) error {
-	var m sync.Mutex
+	var mutex sync.Mutex
+
 	util.DirSetup()
 
 	this.Status = Running
 	var dir = this.Path
+
 	log.Print("Current dir: " + dir)
 
 	//upload up-to-date docker image
@@ -114,20 +114,22 @@ func (g *Graph) runNode(this *Node) error {
 	defer cli.Close()
 
 	util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
-	containerId := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
-	containerId = containerId[:len(containerId)-1]
+	containerID := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
+	containerID = containerID[:len(containerID)-1]
 
-	util.RunCommand("docker cp " + containerId + ":/app " + dir)
-	util.RunCommand("docker stop " + containerId)
+	util.RunCommand("docker cp " + containerID + ":/app " + dir)
+	util.RunCommand("docker stop " + containerID)
 	util.RunCommand("sudo chmod -R 777 " + dir)
 
 	//apply patch
 	for _, patchNum := range this.PatchApplied {
 		var diffPatch = "patch" + patchNum + ".diff"
 
-		m.Lock()
+		mutex.Lock()
 		util.DirSetup()
+
 		patch, err := os.Open(diffPatch)
+
 		if err != nil {
 			return errors.New("Failed patch opening")
 		}
@@ -141,35 +143,38 @@ func (g *Graph) runNode(this *Node) error {
 		if err != nil {
 			return errors.New("Failed patch closing")
 		}
-		m.Unlock()
+		mutex.Unlock()
 
-		for _, f := range files {
-			m.Lock()
-			file, err := os.OpenFile(dir+f.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
+		for _, targetFile := range files {
+			mutex.Lock()
+			file, err := os.OpenFile(dir+targetFile.OldName, os.O_CREATE|os.O_APPEND, os.ModePerm)
+
 			if err != nil {
-				return errors.New("Error while opening " + f.OldName)
+				return errors.New("Error while opening " + targetFile.OldName)
 			}
 
 			var output bytes.Buffer
-			err = gitdiff.Apply(&output, file, f)
+			err = gitdiff.Apply(&output, file, targetFile)
+
 			if err != nil {
-				return errors.New("Error while applying changes " + f.OldName)
+				return errors.New("Error while applying changes " + targetFile.OldName)
 			}
 
 			err = file.Close()
 			if err != nil {
-				return errors.New("Error while closing " + f.OldName)
+				return errors.New("Error while closing " + targetFile.OldName)
 			}
 
-			err = ioutil.WriteFile(dir+f.OldName, output.Bytes(), 0)
+			err = ioutil.WriteFile(dir+targetFile.OldName, output.Bytes(), 0)
 			if err != nil {
-				return errors.New("Error while writing to file " + f.OldName)
+				return errors.New("Error while writing to file " + targetFile.OldName)
 			}
-			m.Unlock()
-		}
-		// patch is successfully applied
+			mutex.Unlock()
+		} // patch is successfully applied
 	}
+
 	err = os.Chdir(dir)
+
 	if err != nil {
 		return errors.New("failed to find directory" + dir)
 	}
@@ -184,84 +189,97 @@ func (g *Graph) runNode(this *Node) error {
 		if this.Right != nil {
 			g.deleteNode(this.Right)
 		}
-		return errors.New("There are possible conflicts. Pull request could not be merged!")
+
+		return errors.New("there are possible conflicts. Pull request could not be merged")
 	}
 
 	this.Status = Successful
+
 	return nil
 }
 
 func decreaseGuard() {
 	select {
-	case _, _ = <-guard:
+	case <-guard:
 	default:
-		fmt.Println("")
 	}
 }
 
 func (g *Graph) Run(node *Node) error {
 	cnt := 0
-	if node != nil {
-		if node.Status == Ready {
-			fmt.Print("start run Node " + utils.ToString(node.PatchApplied) + "\n")
-			err := g.runNode(node)
-			fmt.Print("end run Node " + utils.ToString(node.PatchApplied) + "\n")
-			decreaseGuard()
-			return err
-		}
 
-		var priorityNode = nodesPQ.PopHighest()
-		var nodeDir = getPriorityBranch(node, priorityNode.(*Node))
-
-		if nodeDir == Left {
-			if node.Status == Successful || node.Status == Failed {
-				cnt += 1
-				guard <- 1
-				go g.RunLeft(node)
-			}
-			if node.Status == Successful {
-				cnt += 1
-				guard <- 1
-				go g.RunRight(node)
-			}
-		} else {
-			if node.Status == Successful {
-				cnt += 1
-				guard <- 1
-				go g.RunRight(node)
-			}
-			if node.Status == Successful || node.Status == Failed {
-				cnt += 1
-				guard <- 1
-				go g.RunLeft(node)
-			}
-		}
-
+	if node == nil {
 		decreaseGuard()
 
-		var err error
-		for i := 0; i < cnt; i++ {
-			err = <-errC
-			if err != nil {
-				return err
-			}
+		return nil
+	}
+
+	if node.Status == Ready {
+		log.Print("start run Node " + utils.ToString(node.PatchApplied) + "\n")
+		err := g.runNode(node)
+		log.Print("end run Node " + utils.ToString(node.PatchApplied) + "\n")
+		decreaseGuard()
+
+		return err
+	}
+
+	var priorityNode = nodesPQ.PopHighest()
+
+	var nodeDir = getPriorityBranch(node, priorityNode.(*Node))
+
+	if nodeDir == Left {
+		if node.Status == Successful || node.Status == Failed {
+			cnt++
+
+			guard <- 1
+			go g.RunLeft(node)
+		}
+
+		if node.Status == Successful {
+			cnt++
+
+			guard <- 1
+			go g.RunRight(node)
+		}
+	} else {
+		if node.Status == Successful {
+			cnt++
+
+			guard <- 1
+			go g.RunRight(node)
+		}
+
+		if node.Status == Successful || node.Status == Failed {
+			cnt++
+
+			guard <- 1
+			go g.RunLeft(node)
 		}
 	}
 
 	decreaseGuard()
+
+	var err error
+	for i := 0; i < cnt; i++ {
+		err = <-errC
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (g *Graph) RunLeft(node *Node) {
-	fmt.Print("start run Left Node " + utils.ToString(node.PatchApplied) + "\n")
+	log.Print("start run Left Node " + utils.ToString(node.PatchApplied) + "\n")
 	err := g.Run(node.Left)
-	fmt.Print("end run Left Node " + utils.ToString(node.PatchApplied) + "\n")
+	log.Print("end run Left Node " + utils.ToString(node.PatchApplied) + "\n")
 	errC <- err
 }
 
 func (g *Graph) RunRight(node *Node) {
-	fmt.Print("start run Right Node " + utils.ToString(node.PatchApplied) + "\n")
+	log.Print("start run Right Node " + utils.ToString(node.PatchApplied) + "\n")
 	err := g.Run(node.Right)
-	fmt.Print("end run Right Node " + utils.ToString(node.PatchApplied) + "\n")
+	log.Print("end run Right Node " + utils.ToString(node.PatchApplied) + "\n")
 	errC <- err
 }

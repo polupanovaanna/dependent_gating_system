@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package commit_info;
 
-option go_package = "./commit_info";
+option go_package = "./commitinfo";
 
 message CommitInfo {
   string headHash = 1;

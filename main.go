@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github_actions/commit_info"
+	"github_actions/commitinfo"
 	"log"
 	"net"
 
@@ -10,19 +10,18 @@ import (
 )
 
 func main() {
-
-	fmt.Println("Server is starting...")
+	log.Println("Server is starting...")
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", 8080))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	s := commit_info.Server{}
+	s := commitinfo.Server{}
 
 	grpcServer := grpc.NewServer()
 
-	commit_info.RegisterCommitDataServer(grpcServer, &s)
+	commitinfo.RegisterCommitDataServer(grpcServer, &s)
 
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %s", err)
