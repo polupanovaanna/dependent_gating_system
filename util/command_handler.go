@@ -20,7 +20,10 @@ func ClearAll() {
 }
 
 func DirSetup() {
-	err := os.Chdir("/home/anna/go_git_actions")
+	dirname, err := os.UserHomeDir()
+	CheckErr(err, "user doesn't have home directory")
+
+	err = os.Chdir(dirname + "/dependent_gating_system")
 	CheckErr(err, "Error returning to current directory")
 }
 
