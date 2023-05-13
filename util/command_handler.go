@@ -8,9 +8,15 @@ import (
 
 func ClearAll() {
 	DirSetup()
-	RunCommand("rm -f patch*")
-	RunCommand("rm -f -r nodes")
-	RunCommand("mkdir nodes")
+
+	_, err := RunCommand("rm -f patch*")
+	CheckErr(err, "error while clearing old patches")
+
+	_, err = RunCommand("rm -f -r nodes")
+	CheckErr(err, "error while clearing old nodes content")
+
+	_, err = RunCommand("mkdir nodes")
+	CheckErr(err, "error while creating nodes directory")
 }
 
 func DirSetup() {
@@ -18,7 +24,7 @@ func DirSetup() {
 	CheckErr(err, "Error returning to current directory")
 }
 
-func RunCommand(commandLine string) string {
+func RunCommand(commandLine string) (string, error) {
 	var args = strings.Split(commandLine, " ")
 	var command = exec.Command(args[0], args[1:]...)
 
@@ -29,8 +35,7 @@ func RunCommand(commandLine string) string {
 	command.Stderr = &errOut
 	err := command.Run()
 
-	CheckErr(err, "Error executing command: "+commandLine+"\n Error log: "+errOut.String())
 	DirSetup()
 
-	return out.String()
+	return out.String(), err
 }

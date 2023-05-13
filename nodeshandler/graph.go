@@ -113,13 +113,23 @@ func (g *Graph) runNode(this *Node) error {
 	}
 	defer cli.Close()
 
-	util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
-	containerID := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
+	_, err = util.RunCommand("docker pull polupanovaanna/github_actions_test_project:main")
+
+	if err != nil {
+		return errors.New("error while pulling docker image")
+	}
+
+	containerID, err := util.RunCommand("docker create polupanovaanna/github_actions_test_project:main")
+
+	if err != nil {
+		return errors.New("error while creating docker client")
+	}
+
 	containerID = containerID[:len(containerID)-1]
 
-	util.RunCommand("docker cp " + containerID + ":/app " + dir)
-	util.RunCommand("docker stop " + containerID)
-	util.RunCommand("sudo chmod -R 777 " + dir)
+	_, err = util.RunCommand("docker cp " + containerID + ":/app " + dir)
+	_, err = util.RunCommand("docker stop " + containerID)
+	_, err = util.RunCommand("sudo chmod -R 777 " + dir)
 
 	//apply patch
 	for _, patchNum := range this.PatchApplied {
