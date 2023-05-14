@@ -12,6 +12,6 @@ Related repositories:
 
 To start the server run the following command: `go run main.go`
 
-To run test case: `go run client/test_client.go`
+To run test cases: `go run client/test_client.go`
 
-Your server will be running on the localhost:8080
+The server will be running on the localhost:8080
